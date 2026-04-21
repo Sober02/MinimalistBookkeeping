@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  Record,
+  AccountRecord,
   Category,
   Account,
   DEFAULT_CATEGORIES,
@@ -36,7 +36,7 @@ export interface MonthlyTrend {
 }
 
 export const useAccountingData = () => {
-  const [records, setRecords] = useState<Record[]>([]);
+  const [records, setRecords] = useState<AccountRecord[]>([]);
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
   const [accounts, setAccounts] = useState<Account[]>(DEFAULT_ACCOUNTS);
   const [period, setPeriod] = useState<PeriodType>('month');
@@ -76,7 +76,7 @@ export const useAccountingData = () => {
   }, []);
 
   // 保存记录
-  const saveRecords = useCallback(async (newRecords: Record[]) => {
+  const saveRecords = useCallback(async (newRecords: AccountRecord[]) => {
     try {
       await AsyncStorage.setItem(RECORDS_KEY, JSON.stringify(newRecords));
       setRecords(newRecords);
@@ -86,9 +86,9 @@ export const useAccountingData = () => {
   }, []);
 
   // 添加记录
-  const addRecord = useCallback(async (record: Omit<Record, 'id' | 'timestamp' | 'year' | 'month'>) => {
+  const addRecord = useCallback(async (record: Omit<AccountRecord, 'id' | 'timestamp' | 'year' | 'month'>) => {
     const now = new Date();
-    const newRecord: Record = {
+    const newRecord: AccountRecord = {
       ...record,
       id: Date.now().toString(),
       timestamp: now.getTime(),
@@ -101,7 +101,7 @@ export const useAccountingData = () => {
   }, [records, saveRecords]);
 
   // 更新记录
-  const updateRecord = useCallback(async (id: string, updates: Partial<Record>) => {
+  const updateRecord = useCallback(async (id: string, updates: Partial<AccountRecord>) => {
     const newRecords = records.map(r =>
       r.id === id ? { ...r, ...updates } : r
     );
@@ -175,7 +175,7 @@ export const useAccountingData = () => {
     let filtered = filterRecordsByPeriod(records, period, customDateRange);
     
     if (selectedAccount !== 'all') {
-      filtered = filtered.filter(r => r.account === selectedAccount);
+      filtered = filtered.filter((r: AccountRecord) => r.account === selectedAccount);
     }
     
     if (selectedCategoryFilter !== 'all') {
@@ -184,7 +184,7 @@ export const useAccountingData = () => {
     
     if (searchKeyword.trim()) {
       const keyword = searchKeyword.toLowerCase();
-      filtered = filtered.filter(r =>
+      filtered = filtered.filter((r: AccountRecord) =>
         r.note.toLowerCase().includes(keyword) ||
         getCategoryInfo(r.category)?.name.toLowerCase().includes(keyword)
       );
