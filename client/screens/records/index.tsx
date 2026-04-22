@@ -28,6 +28,16 @@ import {
 
 const { width } = Dimensions.get('window');
 
+// 共享的输入框样式修复
+const inputBaseStyle = {
+  height: 48,
+  paddingVertical: 0 as const,
+  paddingTop: 0,
+  paddingBottom: 0,
+  includeFontPadding: false,
+  textAlignVertical: 'center' as const,
+};
+
 // 毛玻璃卡片组件
 const GlassCard = ({ children, style, intensity = 20 }: {
   children: React.ReactNode;
@@ -80,11 +90,9 @@ export default function RecordsPage() {
 
   // 过滤记录
   const filteredRecords = records.filter(r => {
-    // 分类筛选
     if (selectedCategoryFilter !== 'all' && r.category !== selectedCategoryFilter) {
       return false;
     }
-    // 搜索筛选
     if (searchKeyword.trim()) {
       const keyword = searchKeyword.toLowerCase();
       const categoryName = getCategoryInfo(r.category)?.name || '';
@@ -123,12 +131,10 @@ export default function RecordsPage() {
   // 保存编辑
   const handleSaveEdit = async () => {
     if (!editingRecord) return;
-
     if (!editAmount || parseFloat(editAmount) <= 0) {
       Alert.alert('提示', '请输入有效金额');
       return;
     }
-
     const newRecords = records.map(r =>
       r.id === editingRecord.id ? { ...r, amount: parseFloat(editAmount), category: editCategory, note: editNote.trim(), type: editType } : r
     );
@@ -174,14 +180,16 @@ export default function RecordsPage() {
               <Ionicons name={(category?.icon || 'ellipsis-horizontal-outline') as any} size={22} color={category?.color || '#A0A0A0'} />
             </View>
             <View style={styles.recordInfo}>
-              <Text style={styles.recordCategory}>{category?.name || '其他'}</Text>
+              <Text style={styles.recordCategory} numberOfLines={1}>{category?.name || '其他'}</Text>
               {item.note ? <Text style={styles.recordNote} numberOfLines={1}>{item.note}</Text> : null}
-              <Text style={styles.recordDate}>{item.date}</Text>
+              <Text style={styles.recordDate} numberOfLines={1}>{item.date}</Text>
             </View>
           </View>
-          <Text style={[styles.recordAmount, { color: item.type === 'income' ? '#4ECDC4' : '#FF6B9D' }]}>
-            {item.type === 'income' ? '+' : '-'}¥{formatAmount(item.amount)}
-          </Text>
+          <View style={styles.recordAmountWrap}>
+            <Text style={[styles.recordAmount, { color: item.type === 'income' ? '#4ECDC4' : '#FF6B9D' }]} numberOfLines={1}>
+              {item.type === 'income' ? '+' : '-'}¥{formatAmount(item.amount)}
+            </Text>
+          </View>
         </GlassCard>
       </TouchableOpacity>
     );
@@ -197,7 +205,7 @@ export default function RecordsPage() {
   };
 
   return (
-    <Screen backgroundColor="#0F0C29" statusBarStyle="light" safeAreaEdges={['left', 'right', 'bottom']}>
+    <Screen backgroundColor="#0F0C29" statusBarStyle="light" safeAreaEdges={['top', 'left', 'right', 'bottom']}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.container}>
           {/* 标题 */}
@@ -208,7 +216,7 @@ export default function RecordsPage() {
             <View style={styles.searchInputContainer}>
               <Ionicons name="search" size={20} color="rgba(255,255,255,0.5)" />
               <TextInput
-                style={styles.searchInput}
+                style={[styles.searchInput, inputBaseStyle]}
                 placeholder="搜索备注或分类"
                 placeholderTextColor="rgba(255,255,255,0.3)"
                 value={searchKeyword}
@@ -256,7 +264,7 @@ export default function RecordsPage() {
               <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ justifyContent: 'flex-end' }}>
                 <TouchableOpacity activeOpacity={1}>
                   <View style={styles.editModalBg}>
-                    <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFill} />
+                    <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
                     <View style={styles.editModalContent}>
                       <View style={styles.modalHeader}>
                         <Text style={styles.modalTitle}>编辑记录</Text>
@@ -265,54 +273,56 @@ export default function RecordsPage() {
                         </TouchableOpacity>
                       </View>
 
-                      {/* 类型切换 */}
-                      <View style={styles.typeToggle}>
-                        <TouchableOpacity style={[styles.typeButton, editType === 'expense' && styles.typeButtonActive]} onPress={() => setEditType('expense')}>
-                          <Text style={[styles.typeButtonText, editType === 'expense' && styles.typeButtonTextActive]}>支出</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.typeButton, editType === 'income' && styles.typeButtonActiveIncome]} onPress={() => setEditType('income')}>
-                          <Text style={[styles.typeButtonText, editType === 'income' && styles.typeButtonTextActive]}>收入</Text>
-                        </TouchableOpacity>
-                      </View>
+                      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                        {/* 类型切换 */}
+                        <View style={styles.typeToggle}>
+                          <TouchableOpacity style={[styles.typeButton, editType === 'expense' && styles.typeButtonActive]} onPress={() => setEditType('expense')}>
+                            <Text style={[styles.typeButtonText, editType === 'expense' && styles.typeButtonTextActive]}>支出</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={[styles.typeButton, editType === 'income' && styles.typeButtonActiveIncome]} onPress={() => setEditType('income')}>
+                            <Text style={[styles.typeButtonText, editType === 'income' && styles.typeButtonTextActive]}>收入</Text>
+                          </TouchableOpacity>
+                        </View>
 
-                      {/* 金额输入 */}
-                      <View style={styles.amountContainer}>
-                        <Text style={styles.currencySymbol}>¥</Text>
+                        {/* 金额输入 */}
+                        <View style={styles.amountContainer}>
+                          <Text style={styles.currencySymbol}>¥</Text>
+                          <TextInput
+                            style={[styles.amountInput, { ...inputBaseStyle, height: 56 }]}
+                            placeholder="0.00"
+                            placeholderTextColor="rgba(255,255,255,0.3)"
+                            keyboardType="decimal-pad"
+                            value={editAmount}
+                            onChangeText={handleAmountChange}
+                          />
+                        </View>
+
+                        {/* 分类选择 */}
+                        <Text style={styles.labelText}>分类</Text>
+                        <View style={styles.categoriesScroll}>
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesContainer}>
+                            {categories.filter(c => editType === 'expense' ? c.type === 'expense' : c.type === 'income').map((category) => (
+                              <TouchableOpacity
+                                key={category.id}
+                                style={[styles.categoryItem, editCategory === category.id && { borderColor: category.color, backgroundColor: `${category.color}20` }]}
+                                onPress={() => setEditCategory(category.id)}
+                              >
+                                <Ionicons name={category.icon as any} size={20} color={editCategory === category.id ? category.color : 'rgba(255,255,255,0.5)'} />
+                                <Text style={[styles.categoryText, editCategory === category.id && { color: category.color }]}>{category.name}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        </View>
+
+                        {/* 备注 */}
                         <TextInput
-                          style={styles.amountInput}
-                          placeholder="0.00"
+                          style={[styles.noteInput, inputBaseStyle]}
+                          placeholder="备注"
                           placeholderTextColor="rgba(255,255,255,0.3)"
-                          keyboardType="decimal-pad"
-                          value={editAmount}
-                          onChangeText={handleAmountChange}
+                          value={editNote}
+                          onChangeText={setEditNote}
                         />
-                      </View>
-
-                      {/* 分类选择 */}
-                      <Text style={styles.labelText}>分类</Text>
-                      <View style={styles.categoriesScroll}>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesContainer}>
-                          {categories.filter(c => editType === 'expense' ? c.type === 'expense' : c.type === 'income').map((category) => (
-                            <TouchableOpacity
-                              key={category.id}
-                              style={[styles.categoryItem, editCategory === category.id && { borderColor: category.color, backgroundColor: `${category.color}20` }]}
-                              onPress={() => setEditCategory(category.id)}
-                            >
-                              <Ionicons name={category.icon as any} size={20} color={editCategory === category.id ? category.color : 'rgba(255,255,255,0.5)'} />
-                              <Text style={[styles.categoryText, editCategory === category.id && { color: category.color }]}>{category.name}</Text>
-                            </TouchableOpacity>
-                          ))}
-                        </ScrollView>
-                      </View>
-
-                      {/* 备注 */}
-                      <TextInput
-                        style={styles.noteInput}
-                        placeholder="备注"
-                        placeholderTextColor="rgba(255,255,255,0.3)"
-                        value={editNote}
-                        onChangeText={setEditNote}
-                      />
+                      </ScrollView>
 
                       {/* 按钮 */}
                       <View style={styles.modalButtons}>
@@ -336,7 +346,7 @@ export default function RecordsPage() {
             <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setFilterModalVisible(false)}>
               <TouchableOpacity activeOpacity={1}>
                 <View style={styles.filterModalBg}>
-                  <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFill} />
+                  <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
                   <View style={styles.filterModalContent}>
                     <View style={styles.modalHeader}>
                       <Text style={styles.modalTitle}>筛选分类</Text>
@@ -391,7 +401,7 @@ const styles = StyleSheet.create({
   glassCardContent: { padding: 16 },
   searchContainer: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   searchInputContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 12, paddingHorizontal: 12, height: 48, gap: 8 },
-  searchInput: { flex: 1, fontSize: 14, color: '#FFFFFF', height: 48, paddingVertical: 0 },
+  searchInput: { flex: 1, fontSize: 14, color: '#FFFFFF' },
   filterButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 12, paddingHorizontal: 14, height: 48, gap: 6 },
   filterButtonActive: { backgroundColor: '#6C63FF' },
   filterButtonText: { fontSize: 14, color: 'rgba(255,255,255,0.5)' },
@@ -399,21 +409,22 @@ const styles = StyleSheet.create({
   recordsContainer: { flex: 1 },
   listContent: { paddingBottom: 100 },
   recordCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, marginBottom: 10 },
-  recordLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  recordLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 12 },
   recordIcon: { width: 44, height: 44, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
   recordInfo: { marginLeft: 12, flex: 1 },
   recordCategory: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
   recordNote: { fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2 },
   recordDate: { fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 },
-  recordAmount: { fontSize: 17, fontWeight: '700', marginLeft: 12 },
+  recordAmountWrap: { justifyContent: 'center', paddingLeft: 8 },
+  recordAmount: { fontSize: 16, fontWeight: '700' },
   emptyCard: { alignItems: 'center', paddingVertical: 60 },
   emptyText: { fontSize: 16, fontWeight: '600', color: 'rgba(255,255,255,0.5)', marginTop: 12 },
   emptySubtext: { fontSize: 13, color: 'rgba(255,255,255,0.3)', marginTop: 6 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   editModalBg: { borderTopLeftRadius: 0, borderTopRightRadius: 0, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', borderBottomWidth: 0 },
-  editModalContent: { padding: 24, backgroundColor: 'rgba(20,15,50,0.85)' },
+  editModalContent: { padding: 24, backgroundColor: 'rgba(15,12,41,0.94)', maxHeight: '80%' },
   filterModalBg: { margin: 20, borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
-  filterModalContent: { padding: 24, backgroundColor: 'rgba(20,15,50,0.85)', maxHeight: '70%' },
+  filterModalContent: { padding: 24, backgroundColor: 'rgba(15,12,41,0.94)', maxHeight: '70%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 18, fontWeight: '600', color: '#FFFFFF' },
   typeToggle: { flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12, padding: 4, marginBottom: 20 },
@@ -422,16 +433,16 @@ const styles = StyleSheet.create({
   typeButtonActiveIncome: { backgroundColor: '#4ECDC4' },
   typeButtonText: { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.5)' },
   typeButtonTextActive: { color: '#FFFFFF' },
-  amountContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20, height: 48 },
+  amountContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20, height: 56 },
   currencySymbol: { fontSize: 28, fontWeight: '300', color: 'rgba(255,255,255,0.5)' },
-  amountInput: { fontSize: 36, fontWeight: '700', color: '#FFFFFF', minWidth: 120, textAlign: 'center', height: 48, padding: 0 },
+  amountInput: { fontSize: 36, fontWeight: '700', color: '#FFFFFF', minWidth: 120, textAlign: 'center' },
   labelText: { fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 12 },
   categoriesScroll: { height: 64 },
   categoriesContainer: { flexDirection: 'row', gap: 10 },
   categoryItem: { alignItems: 'center', justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)', minWidth: 60 },
   categoryText: { fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 4 },
-  noteInput: { backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12, paddingHorizontal: 16, fontSize: 14, color: '#FFFFFF', marginTop: 16, height: 48, paddingVertical: 0 },
-  modalButtons: { flexDirection: 'row', gap: 12, marginTop: 20 },
+  noteInput: { backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12, paddingHorizontal: 16, fontSize: 14, color: '#FFFFFF', marginTop: 16 },
+  modalButtons: { flexDirection: 'row', gap: 12, marginTop: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)' },
   modalButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, gap: 8 },
   deleteButton: { backgroundColor: 'rgba(255,107,107,0.2)', borderWidth: 1, borderColor: '#FF6B6B' },
   deleteButtonText: { fontSize: 15, fontWeight: '600', color: '#FF6B6B' },

@@ -11,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { LineChart } from 'react-native-gifted-charts';
+import { PieChart, LineChart } from 'react-native-gifted-charts';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/components/Screen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -33,6 +33,16 @@ import {
 } from '@/utils/accounting';
 
 const { width } = Dimensions.get('window');
+
+// 共享的输入框样式修复
+const inputBaseStyle = {
+  height: 48,
+  paddingVertical: 0 as const,
+  paddingTop: 0,
+  paddingBottom: 0,
+  includeFontPadding: false,
+  textAlignVertical: 'center' as const,
+};
 
 // 毛玻璃卡片组件
 const GlassCard = ({ children, style, intensity = 20 }: {
@@ -152,14 +162,12 @@ export default function StatsPage() {
       const incomeData = monthlyTrend.map(item => ({
         value: item.income,
         dataPointText: '',
-        label: item.month.slice(5),
       }));
       const expenseData = monthlyTrend.map(item => ({
         value: item.expense,
         dataPointText: '',
-        label: item.month.slice(5),
       }));
-      return { incomeData, expenseData, labels: monthlyTrend.map(m => m.month.slice(5)) };
+      return { incomeData, expenseData, xLabels: monthlyTrend.map(m => m.month.slice(5)) };
     } else if (period === 'month' || period === 'lastMonth') {
       // 按日统计
       let targetYear: number, targetMonth: number;
@@ -174,8 +182,9 @@ export default function StatsPage() {
       }
       const daysInMonth = new Date(targetYear, targetMonth, 0).getDate();
       const periodRecords = filterRecordsByPeriod(records, period, customRange);
-      const incomeData: { value: number; dataPointText: string; label: string }[] = [];
-      const expenseData: { value: number; dataPointText: string; label: string }[] = [];
+      const incomeData: { value: number; dataPointText: string }[] = [];
+      const expenseData: { value: number; dataPointText: string }[] = [];
+      const xLabels: string[] = [];
 
       for (let d = 1; d <= daysInMonth; d++) {
         const dayRecords = periodRecords.filter(r => {
@@ -184,18 +193,19 @@ export default function StatsPage() {
         });
         const income = dayRecords.filter(r => r.type === 'income').reduce((sum, r) => sum + r.amount, 0);
         const expense = dayRecords.filter(r => r.type === 'expense').reduce((sum, r) => sum + r.amount, 0);
-        incomeData.push({ value: income, dataPointText: '', label: `${d}日` });
-        expenseData.push({ value: expense, dataPointText: '', label: `${d}日` });
+        incomeData.push({ value: income, dataPointText: '' });
+        expenseData.push({ value: expense, dataPointText: '' });
+        xLabels.push(`${d}`);
       }
-      return { incomeData, expenseData, labels: incomeData.map((_, i) => `${i + 1}`) };
+      return { incomeData, expenseData, xLabels };
     } else if (period === 'week') {
       // 按天统计本周
       const periodRecords = filterRecordsByPeriod(records, period, customRange);
       const now = new Date();
       const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
-      const incomeData: { value: number; dataPointText: string; label: string }[] = [];
-      const expenseData: { value: number; dataPointText: string; label: string }[] = [];
-      const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+      const incomeData: { value: number; dataPointText: string }[] = [];
+      const expenseData: { value: number; dataPointText: string }[] = [];
+      const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
 
       for (let i = 0; i < 7; i++) {
         const day = new Date(startOfWeek);
@@ -204,12 +214,12 @@ export default function StatsPage() {
         const dayRecords = periodRecords.filter(r => r.date === dayStr);
         const income = dayRecords.filter(r => r.type === 'income').reduce((sum, r) => sum + r.amount, 0);
         const expense = dayRecords.filter(r => r.type === 'expense').reduce((sum, r) => sum + r.amount, 0);
-        incomeData.push({ value: income, dataPointText: '', label: dayNames[i] });
-        expenseData.push({ value: expense, dataPointText: '', label: dayNames[i] });
+        incomeData.push({ value: income, dataPointText: '' });
+        expenseData.push({ value: expense, dataPointText: '' });
       }
-      return { incomeData, expenseData, labels: dayNames };
+      return { incomeData, expenseData, xLabels: dayNames };
     }
-    return { incomeData: [], expenseData: [], labels: [] };
+    return { incomeData: [], expenseData: [], xLabels: [] };
   };
 
   const lineChart = getLineChartData();
@@ -231,8 +241,15 @@ export default function StatsPage() {
     setCustomDateModalVisible(false);
   };
 
+  // 计算折线图最大值
+  const getMaxValue = () => {
+    const allValues = [...lineChart.incomeData, ...lineChart.expenseData].map(d => d.value);
+    const maxVal = Math.max(...allValues, 0);
+    return maxVal > 0 ? Math.ceil(maxVal * 1.2 / 10) * 10 : 100;
+  };
+
   return (
-    <Screen backgroundColor="#0F0C29" statusBarStyle="light" safeAreaEdges={['left', 'right', 'bottom']}>
+    <Screen backgroundColor="#0F0C29" statusBarStyle="light" safeAreaEdges={['top', 'left', 'right', 'bottom']}>
       {/* 背景装饰 */}
       <View style={styles.bgOrb1} />
       <View style={styles.bgOrb2} />
@@ -242,7 +259,7 @@ export default function StatsPage() {
         <Text style={styles.title}>周期统计</Text>
 
         {/* 周期切换 */}
-        <View style={styles.periodScroll}>
+        <View style={styles.periodScrollWrapper}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.periodContainer}>
             {PERIOD_OPTIONS.map((option) => (
               <TouchableOpacity
@@ -336,15 +353,30 @@ export default function StatsPage() {
           </View>
         </GlassCard>
 
-        {/* 分类支出占比 */}
+        {/* 分类支出占比 - 使用 PieChart */}
         <GlassCard style={styles.card} intensity={15}>
           <Text style={styles.cardTitle}>分类支出占比</Text>
           {pieData.length > 0 ? (
             <View style={styles.pieContainer}>
-              <View style={styles.pieChart}>
-                <Text style={styles.pieCenterValue}>¥{formatAmount(stats.expense)}</Text>
-                <Text style={styles.pieCenterLabel}>总支出</Text>
-              </View>
+              <PieChart
+                data={pieData}
+                donut
+                radius={80}
+                innerRadius={50}
+                innerCircleColor="rgba(15,12,41,0.8)"
+                centerLabelComponent={() => (
+                  <View style={styles.pieCenter}>
+                    <Text style={styles.pieCenterValue}>¥{formatAmount(stats.expense)}</Text>
+                    <Text style={styles.pieCenterLabel}>总支出</Text>
+                  </View>
+                )}
+                textColor="white"
+                textSize={10}
+                showText
+                showValuesAsLabels={false}
+                strokeWidth={0}
+                focusOnPress={false}
+              />
               <View style={styles.legendContainer}>
                 {pieData.map((item, index) => (
                   <View key={index} style={styles.legendItem}>
@@ -363,7 +395,7 @@ export default function StatsPage() {
           )}
         </GlassCard>
 
-        {/* 收支趋势 - 根据周期联动 */}
+        {/* 收支趋势 - 纯折线图，根据周期联动 */}
         <GlassCard style={styles.card} intensity={15}>
           <Text style={styles.cardTitle}>
             {period === 'all' || period === 'custom' ? '月度收支趋势' :
@@ -376,24 +408,29 @@ export default function StatsPage() {
                 data2={lineChart.expenseData}
                 width={width - 100}
                 height={180}
-                spacing={Math.max(20, (width - 120) / (lineChart.incomeData.length + 1))}
+                spacing={lineChart.xLabels.length > 0 ? Math.max(12, (width - 120) / (lineChart.xLabels.length + 1)) : 20}
                 color1="#4ECDC4"
                 color2="#FF6B9D"
-                startFillColor1="rgba(78,205,196,0.3)"
-                startFillColor2="rgba(255,107,157,0.3)"
-                endFillColor1="rgba(78,205,196,0.01)"
-                endFillColor2="rgba(255,107,157,0.01)"
                 initialSpacing={10}
                 endSpacing={10}
                 noOfSections={4}
-                yAxisColor="rgba(255,255,255,0.1)"
-                xAxisColor="rgba(255,255,255,0.1)"
+                maxValue={getMaxValue()}
+                yAxisColor="rgba(255,255,255,0.15)"
+                xAxisColor="rgba(255,255,255,0.15)"
                 yAxisTextStyle={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}
                 xAxisLabelTextStyle={{ color: 'rgba(255,255,255,0.3)', fontSize: 9 }}
                 hideRules
                 curved
-                areaChart
                 showDataPointOnFocus
+                dataPointsColor1="#4ECDC4"
+                dataPointsColor2="#FF6B9D"
+                dataPointsRadius={3}
+                thickness={2}
+                startFillColor1="transparent"
+                endFillColor1="transparent"
+                startFillColor2="transparent"
+                endFillColor2="transparent"
+                adjustToWidth
               />
               <View style={styles.chartLegend}>
                 <View style={styles.legendItem}>
@@ -432,7 +469,7 @@ export default function StatsPage() {
               <View style={styles.dateInputGroup}>
                 <Text style={styles.dateLabel}>开始日期</Text>
                 <TextInput
-                  style={styles.dateInput}
+                  style={[styles.dateInput, inputBaseStyle]}
                   value={customStartDate}
                   onChangeText={setCustomStartDate}
                   placeholder="YYYY-MM-DD"
@@ -443,7 +480,7 @@ export default function StatsPage() {
               <View style={styles.dateInputGroup}>
                 <Text style={styles.dateLabel}>结束日期</Text>
                 <TextInput
-                  style={styles.dateInput}
+                  style={[styles.dateInput, inputBaseStyle]}
                   value={customEndDate}
                   onChangeText={setCustomEndDate}
                   placeholder="YYYY-MM-DD"
@@ -473,8 +510,8 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 16, fontWeight: '600', color: '#FFFFFF', marginBottom: 16 },
   cardTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   totalAssets: { fontSize: 13, fontWeight: '700' },
-  periodContainer: { flexDirection: 'row', gap: 10, marginBottom: 16, paddingRight: 20 },
-  periodScroll: { height: 50 },
+  periodScrollWrapper: { height: 50, marginBottom: 16 },
+  periodContainer: { flexDirection: 'row', gap: 10, paddingRight: 20 },
   periodButton: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
   periodButtonActive: { backgroundColor: '#6C63FF', borderColor: '#6C63FF' },
   periodButtonText: { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.6)' },
@@ -492,7 +529,7 @@ const styles = StyleSheet.create({
   accountName: { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 6 },
   accountBalance: { fontSize: 11, fontWeight: '600', marginTop: 4 },
   pieContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  pieChart: { alignItems: 'center', justifyContent: 'center', width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(0,0,0,0.2)' },
+  pieCenter: { alignItems: 'center', justifyContent: 'center' },
   pieCenterValue: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
   pieCenterLabel: { fontSize: 10, color: 'rgba(255,255,255,0.5)', marginTop: 2 },
   legendContainer: { flex: 1, marginLeft: 16 },
@@ -514,7 +551,7 @@ const styles = StyleSheet.create({
   dateHint: { fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 20 },
   dateInputGroup: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 12 },
   dateLabel: { fontSize: 14, color: 'rgba(255,255,255,0.6)', width: 70 },
-  dateInput: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 0, fontSize: 14, color: '#FFFFFF', height: 48 },
+  dateInput: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 12, paddingHorizontal: 16, fontSize: 14, color: '#FFFFFF' },
   confirmButton: { backgroundColor: '#6C63FF', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
   confirmButtonText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
 });

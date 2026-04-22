@@ -43,6 +43,16 @@ const ACCOUNT_ICONS = [
   'wallet-outline', 'phone-portrait-outline', 'diamond-outline', 'star-outline',
 ];
 
+// 共享的输入框样式修复：文字垂直居中 + 无滚动条
+const inputBaseStyle = {
+  height: 48,
+  paddingVertical: 0 as const,
+  paddingTop: 0,
+  paddingBottom: 0,
+  includeFontPadding: false,
+  textAlignVertical: 'center' as const,
+};
+
 export default function SettingsPage() {
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES as Category[]);
   const [accounts, setAccounts] = useState<Account[]>(DEFAULT_ACCOUNTS as Account[]);
@@ -193,7 +203,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <Screen backgroundColor="#0F0C29" statusBarStyle="light" safeAreaEdges={['left', 'right', 'bottom']}>
+    <Screen backgroundColor="#0F0C29" statusBarStyle="light" safeAreaEdges={['top', 'left', 'right', 'bottom']}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* 标题 */}
         <Text style={styles.title}>设置</Text>
@@ -314,7 +324,7 @@ export default function SettingsPage() {
                   {/* 分类名称 */}
                   <Text style={styles.inputLabel}>分类名称</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, inputBaseStyle]}
                     placeholder="输入分类名称"
                     placeholderTextColor="rgba(255,255,255,0.3)"
                     value={newCategoryName}
@@ -407,7 +417,7 @@ export default function SettingsPage() {
                   {/* 账户名称 */}
                   <Text style={styles.inputLabel}>账户名称</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, inputBaseStyle]}
                     placeholder="输入账户名称"
                     placeholderTextColor="rgba(255,255,255,0.3)"
                     value={newAccountName}
@@ -502,7 +512,7 @@ export default function SettingsPage() {
                   <View style={styles.colorInputRow}>
                     <Text style={styles.colorHashLabel}>#</Text>
                     <TextInput
-                      style={styles.colorHexInput}
+                      style={[styles.colorHexInput, inputBaseStyle]}
                       value={customColorHex}
                       onChangeText={setCustomColorHex}
                       placeholder="FF6B9D"

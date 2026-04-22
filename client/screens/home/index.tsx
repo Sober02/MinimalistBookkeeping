@@ -7,7 +7,6 @@ import {
   StyleSheet,
   FlatList,
   Alert,
-  Modal,
   ScrollView,
   Dimensions,
   Platform,
@@ -34,6 +33,16 @@ import {
 } from '@/utils/accounting';
 
 const { width } = Dimensions.get('window');
+
+// 共享的输入框样式修复：文字垂直居中 + 无滚动条
+const inputBaseStyle = {
+  height: 48,
+  paddingVertical: 0 as const,
+  paddingTop: 0,
+  paddingBottom: 0,
+  includeFontPadding: false,
+  textAlignVertical: 'center' as const,
+};
 
 // 毛玻璃卡片组件
 const GlassCard = ({ children, style, intensity = 20 }: {
@@ -162,7 +171,7 @@ export default function HomePage() {
         </View>
         <View style={styles.recordInfo}>
           <Text style={styles.recordName}>{category?.name || '其他'}</Text>
-          <Text style={styles.recordDate}>{item.date}</Text>
+          <Text style={styles.recordDate} numberOfLines={1} ellipsizeMode="clip">{item.date}</Text>
         </View>
         <Text style={[styles.recordAmount, { color: item.type === 'income' ? '#4ECDC4' : '#FF6B9D' }]}>
           {item.type === 'income' ? '+' : '-'}¥{formatAmount(item.amount)}
@@ -172,7 +181,7 @@ export default function HomePage() {
   };
 
   return (
-    <Screen backgroundColor="#0F0C29" statusBarStyle="light" safeAreaEdges={['left', 'right', 'bottom']}>
+    <Screen backgroundColor="#0F0C29" statusBarStyle="light" safeAreaEdges={['top', 'left', 'right', 'bottom']}>
       {/* 背景装饰 */}
       <View style={styles.bgOrb1} />
       <View style={styles.bgOrb2} />
@@ -285,7 +294,7 @@ export default function HomePage() {
             <View style={styles.amountContainer}>
               <Text style={styles.currencySymbol}>¥</Text>
               <TextInput
-                style={styles.amountInput}
+                style={[styles.amountInput, inputBaseStyle]}
                 placeholder="0.00"
                 placeholderTextColor="rgba(255,255,255,0.3)"
                 keyboardType="decimal-pad"
@@ -331,7 +340,7 @@ export default function HomePage() {
 
             {/* 备注 */}
             <TextInput
-              style={styles.noteInput}
+              style={[styles.noteInput, inputBaseStyle]}
               placeholder="备注（可选）"
               placeholderTextColor="rgba(255,255,255,0.3)"
               value={note}
@@ -397,15 +406,15 @@ const styles = StyleSheet.create({
   typeButtonActiveIncome: { backgroundColor: '#4ECDC4' },
   typeButtonText: { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.5)' },
   typeButtonTextActive: { color: '#FFFFFF' },
-  amountContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20, height: 48 },
+  amountContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20, height: 56 },
   currencySymbol: { fontSize: 28, fontWeight: '300', color: 'rgba(255,255,255,0.5)', marginRight: 4 },
-  amountInput: { fontSize: 36, fontWeight: '700', color: '#FFFFFF', minWidth: 120, textAlign: 'center', height: 48, padding: 0 },
+  amountInput: { fontSize: 36, fontWeight: '700', color: '#FFFFFF', minWidth: 120, textAlign: 'center' },
   labelText: { fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 12, marginTop: 8 },
   categoriesScroll: { height: 70 },
   categoriesContainer: { flexDirection: 'row', gap: 10, paddingRight: 10 },
   categoryItem: { alignItems: 'center', justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)', minWidth: 65 },
   categoryText: { fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 6, textAlign: 'center' },
-  noteInput: { backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12, paddingHorizontal: 16, fontSize: 14, color: '#FFFFFF', marginTop: 16, marginBottom: 20, height: 48, paddingVertical: 0 },
+  noteInput: { backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12, paddingHorizontal: 16, fontSize: 14, color: '#FFFFFF', marginTop: 16, marginBottom: 20 },
   submitButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, borderRadius: 16, gap: 8 },
   submitButtonText: { fontSize: 17, fontWeight: '700', color: '#FFFFFF' },
 });
