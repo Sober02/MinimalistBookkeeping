@@ -73,6 +73,7 @@ export default function StatsPage() {
   const [customEndDate, setCustomEndDate] = useState(formatDate(new Date()));
   const [customRange, setCustomRange] = useState<{ start: Date; end: Date } | undefined>(undefined);
   const [accounts, setAccounts] = useState<Account[]>(DEFAULT_ACCOUNTS as Account[]);
+  const [tooltipText, setTooltipText] = useState('');
 
   // 使用 useFocusEffect 每次获得焦点时刷新数据
   useFocusEffect(
@@ -155,21 +156,21 @@ export default function StatsPage() {
     label: getCategoryName(stat.category),
   }));
 
-  // 折线图数据 - 根据当前周期联动
+  // 折线图数据 - 根据当前周期联动，每个数据点都带label
   const getLineChartData = () => {
     if (period === 'all' || period === 'custom') {
-      // 月度趋势
       const incomeData = monthlyTrend.map(item => ({
         value: item.income,
+        label: item.month.slice(5), // MM
         dataPointText: '',
       }));
       const expenseData = monthlyTrend.map(item => ({
         value: item.expense,
+        label: item.month.slice(5),
         dataPointText: '',
       }));
-      return { incomeData, expenseData, xLabels: monthlyTrend.map(m => m.month.slice(5)) };
+      return { incomeData, expenseData };
     } else if (period === 'month' || period === 'lastMonth') {
-      // 按日统计
       let targetYear: number, targetMonth: number;
       const now = new Date();
       if (period === 'month') {
@@ -182,9 +183,8 @@ export default function StatsPage() {
       }
       const daysInMonth = new Date(targetYear, targetMonth, 0).getDate();
       const periodRecords = filterRecordsByPeriod(records, period, customRange);
-      const incomeData: { value: number; dataPointText: string }[] = [];
-      const expenseData: { value: number; dataPointText: string }[] = [];
-      const xLabels: string[] = [];
+      const incomeData: { value: number; label: string; dataPointText: string }[] = [];
+      const expenseData: { value: number; label: string; dataPointText: string }[] = [];
 
       for (let d = 1; d <= daysInMonth; d++) {
         const dayRecords = periodRecords.filter(r => {
@@ -193,19 +193,19 @@ export default function StatsPage() {
         });
         const income = dayRecords.filter(r => r.type === 'income').reduce((sum, r) => sum + r.amount, 0);
         const expense = dayRecords.filter(r => r.type === 'expense').reduce((sum, r) => sum + r.amount, 0);
-        incomeData.push({ value: income, dataPointText: '' });
-        expenseData.push({ value: expense, dataPointText: '' });
-        xLabels.push(`${d}`);
+        // 只在每5天或首末日显示X轴标签，避免拥挤
+        const showLabel = d === 1 || d === daysInMonth || d % 5 === 0;
+        incomeData.push({ value: income, label: showLabel ? `${d}日` : '', dataPointText: '' });
+        expenseData.push({ value: expense, label: showLabel ? `${d}日` : '', dataPointText: '' });
       }
-      return { incomeData, expenseData, xLabels };
+      return { incomeData, expenseData };
     } else if (period === 'week') {
-      // 按天统计本周
       const periodRecords = filterRecordsByPeriod(records, period, customRange);
       const now = new Date();
       const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
-      const incomeData: { value: number; dataPointText: string }[] = [];
-      const expenseData: { value: number; dataPointText: string }[] = [];
-      const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+      const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+      const incomeData: { value: number; label: string; dataPointText: string }[] = [];
+      const expenseData: { value: number; label: string; dataPointText: string }[] = [];
 
       for (let i = 0; i < 7; i++) {
         const day = new Date(startOfWeek);
@@ -214,12 +214,12 @@ export default function StatsPage() {
         const dayRecords = periodRecords.filter(r => r.date === dayStr);
         const income = dayRecords.filter(r => r.type === 'income').reduce((sum, r) => sum + r.amount, 0);
         const expense = dayRecords.filter(r => r.type === 'expense').reduce((sum, r) => sum + r.amount, 0);
-        incomeData.push({ value: income, dataPointText: '' });
-        expenseData.push({ value: expense, dataPointText: '' });
+        incomeData.push({ value: income, label: dayNames[i], dataPointText: '' });
+        expenseData.push({ value: expense, label: dayNames[i], dataPointText: '' });
       }
-      return { incomeData, expenseData, xLabels: dayNames };
+      return { incomeData, expenseData };
     }
-    return { incomeData: [], expenseData: [], xLabels: [] };
+    return { incomeData: [], expenseData: [] };
   };
 
   const lineChart = getLineChartData();
@@ -241,11 +241,14 @@ export default function StatsPage() {
     setCustomDateModalVisible(false);
   };
 
-  // 计算折线图最大值
+  // 计算折线图最大值 - 基于实际数据
   const getMaxValue = () => {
     const allValues = [...lineChart.incomeData, ...lineChart.expenseData].map(d => d.value);
     const maxVal = Math.max(...allValues, 0);
-    return maxVal > 0 ? Math.ceil(maxVal * 1.2 / 10) * 10 : 100;
+    if (maxVal === 0) return 100;
+    // 向上取整到合适的刻度
+    const magnitude = Math.pow(10, Math.floor(Math.log10(maxVal)));
+    return Math.ceil(maxVal / magnitude) * magnitude;
   };
 
   return (
@@ -395,7 +398,7 @@ export default function StatsPage() {
           )}
         </GlassCard>
 
-        {/* 收支趋势 - 纯折线图，根据周期联动 */}
+        {/* 收支趋势 - 纯折线图，带X轴标签、图例、点击显示金额 */}
         <GlassCard style={styles.card} intensity={15}>
           <Text style={styles.cardTitle}>
             {period === 'all' || period === 'custom' ? '月度收支趋势' :
@@ -406,9 +409,9 @@ export default function StatsPage() {
               <LineChart
                 data={lineChart.incomeData}
                 data2={lineChart.expenseData}
-                width={width - 100}
-                height={180}
-                spacing={lineChart.xLabels.length > 0 ? Math.max(12, (width - 120) / (lineChart.xLabels.length + 1)) : 20}
+                width={width - 80}
+                height={200}
+                spacing={lineChart.incomeData.length > 0 ? Math.max(14, (width - 100) / (lineChart.incomeData.length + 1)) : 20}
                 color1="#4ECDC4"
                 color2="#FF6B9D"
                 initialSpacing={10}
@@ -418,28 +421,38 @@ export default function StatsPage() {
                 yAxisColor="rgba(255,255,255,0.15)"
                 xAxisColor="rgba(255,255,255,0.15)"
                 yAxisTextStyle={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}
-                xAxisLabelTextStyle={{ color: 'rgba(255,255,255,0.3)', fontSize: 9 }}
+                xAxisLabelTextStyle={{ color: 'rgba(255,255,255,0.5)', fontSize: 9, width: 40 }}
                 hideRules
                 curved
-                showDataPointOnFocus
+                focusEnabled
+                showStripOnFocus
+                showTextOnFocus
+                stripColor="rgba(255,255,255,0.15)"
+                stripOpacity={0.5}
                 dataPointsColor1="#4ECDC4"
                 dataPointsColor2="#FF6B9D"
-                dataPointsRadius={3}
+                dataPointsRadius={4}
+                focusedDataPointRadius={6}
+                dataPointsWidth={0}
                 thickness={2}
                 startFillColor1="transparent"
                 endFillColor1="transparent"
                 startFillColor2="transparent"
                 endFillColor2="transparent"
                 adjustToWidth
+                textFontSize={12}
+                textColor1="#4ECDC4"
+                textColor2="#FF6B9D"
               />
-              <View style={styles.chartLegend}>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendLine, { backgroundColor: '#4ECDC4' }]} />
-                  <Text style={styles.legendLabel}>收入</Text>
+              {/* 图例 - 更明显的样式 */}
+              <View style={styles.chartLegendBox}>
+                <View style={styles.chartLegendItem}>
+                  <View style={[styles.chartLegendLine, { backgroundColor: '#4ECDC4' }]} />
+                  <Text style={styles.chartLegendText}>收入</Text>
                 </View>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendLine, { backgroundColor: '#FF6B9D' }]} />
-                  <Text style={styles.legendLabel}>支出</Text>
+                <View style={styles.chartLegendItem}>
+                  <View style={[styles.chartLegendLine, { backgroundColor: '#FF6B9D' }]} />
+                  <Text style={styles.chartLegendText}>支出</Text>
                 </View>
               </View>
             </View>
@@ -539,7 +552,20 @@ const styles = StyleSheet.create({
   legendLabel: { fontSize: 12, color: 'rgba(255,255,255,0.7)', flex: 1 },
   legendValue: { fontSize: 12, fontWeight: '600', color: '#FFFFFF' },
   chartContainer: { alignItems: 'center' },
-  chartLegend: { flexDirection: 'row', justifyContent: 'center', gap: 24, marginTop: 16 },
+  chartLegendBox: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 24,
+    marginTop: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 10,
+    alignSelf: 'center',
+  },
+  chartLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  chartLegendLine: { width: 20, height: 4, borderRadius: 2 },
+  chartLegendText: { fontSize: 13, fontWeight: '600', color: '#FFFFFF' },
   emptyChart: { alignItems: 'center', paddingVertical: 30 },
   emptyText: { fontSize: 14, color: 'rgba(255,255,255,0.3)', marginTop: 10 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },

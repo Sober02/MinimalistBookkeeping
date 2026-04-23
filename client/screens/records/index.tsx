@@ -13,7 +13,6 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/components/Screen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -38,20 +37,6 @@ const inputBaseStyle = {
   textAlignVertical: 'center' as const,
 };
 
-// 毛玻璃卡片组件
-const GlassCard = ({ children, style, intensity = 20 }: {
-  children: React.ReactNode;
-  style?: any;
-  intensity?: number;
-}) => (
-  <View style={[styles.glassCard, style]}>
-    <BlurView intensity={intensity} tint="dark" style={StyleSheet.absoluteFill} />
-    <View style={styles.glassCardContent}>{children}</View>
-  </View>
-);
-
-const RECORDS_KEY = STORAGE_KEYS.RECORDS;
-
 export default function RecordsPage() {
   const [records, setRecords] = useState<AccountRecord[]>([]);
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES as Category[]);
@@ -72,7 +57,7 @@ export default function RecordsPage() {
     useCallback(() => {
       const loadData = async () => {
         try {
-          const stored = await AsyncStorage.getItem(RECORDS_KEY);
+          const stored = await AsyncStorage.getItem(STORAGE_KEYS.RECORDS);
           if (stored) {
             setRecords(JSON.parse(stored));
           }
@@ -106,7 +91,7 @@ export default function RecordsPage() {
   // 保存数据
   const saveRecords = async (newRecords: AccountRecord[]) => {
     try {
-      await AsyncStorage.setItem(RECORDS_KEY, JSON.stringify(newRecords));
+      await AsyncStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(newRecords));
       setRecords(newRecords);
     } catch (error) {
       console.error('保存数据失败:', error);
@@ -154,6 +139,7 @@ export default function RecordsPage() {
         onPress: async () => {
           const newRecords = records.filter(r => r.id !== id);
           await saveRecords(newRecords);
+          setEditModalVisible(false);
         },
       },
     ]);
@@ -169,28 +155,46 @@ export default function RecordsPage() {
     setEditAmount(cleaned);
   };
 
-  // 渲染单条记录
+  // 渲染单条记录 - 不用GlassCard，使用简单的View避免BlurView遮挡文字
   const renderRecord = ({ item }: { item: AccountRecord }) => {
     const category = getCategoryInfo(item.category);
+    const catColor = category?.color || '#A0A0A0';
+    const catName = category?.name || '其他';
+    const catIcon = category?.icon || 'ellipsis-horizontal-outline';
+
     return (
-      <TouchableOpacity onPress={() => handleEdit(item)} onLongPress={() => handleDelete(item.id)}>
-        <GlassCard style={styles.recordCard} intensity={12}>
-          <View style={styles.recordLeft}>
-            <View style={[styles.recordIcon, { backgroundColor: `${category?.color || '#A0A0A0'}20` }]}>
-              <Ionicons name={(category?.icon || 'ellipsis-horizontal-outline') as any} size={22} color={category?.color || '#A0A0A0'} />
-            </View>
-            <View style={styles.recordInfo}>
-              <Text style={styles.recordCategory} numberOfLines={1}>{category?.name || '其他'}</Text>
-              {item.note ? <Text style={styles.recordNote} numberOfLines={1}>{item.note}</Text> : null}
-              <Text style={styles.recordDate} numberOfLines={1}>{item.date}</Text>
+      <TouchableOpacity
+        style={styles.recordCard}
+        onPress={() => handleEdit(item)}
+        onLongPress={() => handleDelete(item.id)}
+        activeOpacity={0.7}
+      >
+        {/* 左侧：类型色条 + 图标 */}
+        <View style={[styles.recordColorBar, { backgroundColor: catColor }]} />
+        <View style={[styles.recordIconWrap, { backgroundColor: `${catColor}20` }]}>
+          <Ionicons name={catIcon as any} size={20} color={catColor} />
+        </View>
+
+        {/* 中间：分类 + 日期 + 备注 */}
+        <View style={styles.recordMiddle}>
+          <View style={styles.recordNameRow}>
+            <Text style={styles.recordCatName} numberOfLines={1}>{catName}</Text>
+            <View style={[styles.recordTypeTag, { backgroundColor: item.type === 'income' ? 'rgba(78,205,196,0.15)' : 'rgba(255,107,157,0.15)' }]}>
+              <Text style={[styles.recordTypeTagText, { color: item.type === 'income' ? '#4ECDC4' : '#FF6B9D' }]}>
+                {item.type === 'income' ? '收入' : '支出'}
+              </Text>
             </View>
           </View>
-          <View style={styles.recordAmountWrap}>
-            <Text style={[styles.recordAmount, { color: item.type === 'income' ? '#4ECDC4' : '#FF6B9D' }]} numberOfLines={1}>
-              {item.type === 'income' ? '+' : '-'}¥{formatAmount(item.amount)}
-            </Text>
-          </View>
-        </GlassCard>
+          <Text style={styles.recordDateText} numberOfLines={1}>{item.date}</Text>
+          {item.note ? <Text style={styles.recordNoteText} numberOfLines={1}>{item.note}</Text> : null}
+        </View>
+
+        {/* 右侧：金额 */}
+        <View style={styles.recordRight}>
+          <Text style={[styles.recordAmountText, { color: item.type === 'income' ? '#4ECDC4' : '#FF6B9D' }]} numberOfLines={1}>
+            {item.type === 'income' ? '+' : '-'}¥{formatAmount(item.amount)}
+          </Text>
+        </View>
       </TouchableOpacity>
     );
   };
@@ -212,9 +216,9 @@ export default function RecordsPage() {
           <Text style={styles.title}>收支明细</Text>
 
           {/* 搜索框 */}
-          <View style={styles.searchContainer}>
-            <View style={styles.searchInputContainer}>
-              <Ionicons name="search" size={20} color="rgba(255,255,255,0.5)" />
+          <View style={styles.searchRow}>
+            <View style={styles.searchBox}>
+              <Ionicons name="search" size={18} color="rgba(255,255,255,0.4)" />
               <TextInput
                 style={[styles.searchInput, inputBaseStyle]}
                 placeholder="搜索备注或分类"
@@ -224,171 +228,192 @@ export default function RecordsPage() {
               />
               {searchKeyword.length > 0 && (
                 <TouchableOpacity onPress={() => setSearchKeyword('')}>
-                  <Ionicons name="close-circle" size={18} color="rgba(255,255,255,0.5)" />
+                  <Ionicons name="close-circle" size={16} color="rgba(255,255,255,0.4)" />
                 </TouchableOpacity>
               )}
             </View>
             <TouchableOpacity
-              style={[styles.filterButton, selectedCategoryFilter !== 'all' && styles.filterButtonActive]}
+              style={[styles.filterBtn, selectedCategoryFilter !== 'all' && styles.filterBtnActive]}
               onPress={() => setFilterModalVisible(true)}
             >
-              <Ionicons name="funnel-outline" size={18} color={selectedCategoryFilter !== 'all' ? '#FFF' : 'rgba(255,255,255,0.5)'} />
-              <Text style={[styles.filterButtonText, selectedCategoryFilter !== 'all' && styles.filterButtonTextActive]}>
+              <Ionicons name="funnel-outline" size={16} color={selectedCategoryFilter !== 'all' ? '#FFF' : 'rgba(255,255,255,0.5)'} />
+              <Text style={[styles.filterBtnText, selectedCategoryFilter !== 'all' && styles.filterBtnTextActive]}>
                 {getFilterButtonText()}
               </Text>
             </TouchableOpacity>
           </View>
 
           {/* 记录列表 */}
-          <View style={styles.recordsContainer}>
-            {filteredRecords.length === 0 ? (
-              <GlassCard style={styles.emptyCard} intensity={15}>
-                <Ionicons name="document-text-outline" size={48} color="rgba(255,255,255,0.2)" />
-                <Text style={styles.emptyText}>暂无记录</Text>
-                <Text style={styles.emptySubtext}>点击可编辑，长按可删除</Text>
-              </GlassCard>
-            ) : (
-              <FlatList
-                data={filteredRecords}
-                renderItem={renderRecord}
-                keyExtractor={(item) => item.id}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.listContent}
-              />
-            )}
-          </View>
+          {filteredRecords.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="document-text-outline" size={48} color="rgba(255,255,255,0.15)" />
+              <Text style={styles.emptyText}>暂无记录</Text>
+              <Text style={styles.emptySubtext}>点击编辑 · 长按删除</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={filteredRecords}
+              renderItem={renderRecord}
+              keyExtractor={(item) => item.id}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.listContent}
+            />
+          )}
+        </View>
 
-          {/* 编辑弹窗 */}
-          <Modal visible={editModalVisible} transparent animationType="slide" onRequestClose={() => setEditModalVisible(false)}>
-            <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setEditModalVisible(false)}>
-              <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ justifyContent: 'flex-end' }}>
-                <TouchableOpacity activeOpacity={1}>
-                  <View style={styles.editModalBg}>
-                    <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
-                    <View style={styles.editModalContent}>
-                      <View style={styles.modalHeader}>
-                        <Text style={styles.modalTitle}>编辑记录</Text>
-                        <TouchableOpacity onPress={() => setEditModalVisible(false)}>
-                          <Ionicons name="close" size={24} color="rgba(255,255,255,0.5)" />
-                        </TouchableOpacity>
-                      </View>
+        {/* 编辑弹窗 - 使用不透明背景，不用BlurView */}
+        <Modal visible={editModalVisible} transparent animationType="slide" onRequestClose={() => setEditModalVisible(false)}>
+          <TouchableOpacity style={styles.editOverlay} activeOpacity={1} onPress={() => setEditModalVisible(false)}>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ justifyContent: 'flex-end' }}>
+              <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
+                <View style={styles.editPanel}>
+                  {/* 顶部把手 */}
+                  <View style={styles.editHandle} />
 
-                      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                        {/* 类型切换 */}
-                        <View style={styles.typeToggle}>
-                          <TouchableOpacity style={[styles.typeButton, editType === 'expense' && styles.typeButtonActive]} onPress={() => setEditType('expense')}>
-                            <Text style={[styles.typeButtonText, editType === 'expense' && styles.typeButtonTextActive]}>支出</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity style={[styles.typeButton, editType === 'income' && styles.typeButtonActiveIncome]} onPress={() => setEditType('income')}>
-                            <Text style={[styles.typeButtonText, editType === 'income' && styles.typeButtonTextActive]}>收入</Text>
-                          </TouchableOpacity>
-                        </View>
-
-                        {/* 金额输入 */}
-                        <View style={styles.amountContainer}>
-                          <Text style={styles.currencySymbol}>¥</Text>
-                          <TextInput
-                            style={[styles.amountInput, { ...inputBaseStyle, height: 56 }]}
-                            placeholder="0.00"
-                            placeholderTextColor="rgba(255,255,255,0.3)"
-                            keyboardType="decimal-pad"
-                            value={editAmount}
-                            onChangeText={handleAmountChange}
-                          />
-                        </View>
-
-                        {/* 分类选择 */}
-                        <Text style={styles.labelText}>分类</Text>
-                        <View style={styles.categoriesScroll}>
-                          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesContainer}>
-                            {categories.filter(c => editType === 'expense' ? c.type === 'expense' : c.type === 'income').map((category) => (
-                              <TouchableOpacity
-                                key={category.id}
-                                style={[styles.categoryItem, editCategory === category.id && { borderColor: category.color, backgroundColor: `${category.color}20` }]}
-                                onPress={() => setEditCategory(category.id)}
-                              >
-                                <Ionicons name={category.icon as any} size={20} color={editCategory === category.id ? category.color : 'rgba(255,255,255,0.5)'} />
-                                <Text style={[styles.categoryText, editCategory === category.id && { color: category.color }]}>{category.name}</Text>
-                              </TouchableOpacity>
-                            ))}
-                          </ScrollView>
-                        </View>
-
-                        {/* 备注 */}
-                        <TextInput
-                          style={[styles.noteInput, inputBaseStyle]}
-                          placeholder="备注"
-                          placeholderTextColor="rgba(255,255,255,0.3)"
-                          value={editNote}
-                          onChangeText={setEditNote}
-                        />
-                      </ScrollView>
-
-                      {/* 按钮 */}
-                      <View style={styles.modalButtons}>
-                        <TouchableOpacity style={[styles.modalButton, styles.deleteButton]} onPress={() => { if (editingRecord) { handleDelete(editingRecord.id); setEditModalVisible(false); } }}>
-                          <Ionicons name="trash-outline" size={20} color="#FF6B6B" />
-                          <Text style={styles.deleteButtonText}>删除</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.modalButton, styles.saveButton]} onPress={handleSaveEdit}>
-                          <Text style={styles.saveButtonText}>保存</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              </KeyboardAvoidingView>
-            </TouchableOpacity>
-          </Modal>
-
-          {/* 筛选弹窗 */}
-          <Modal visible={filterModalVisible} transparent animationType="fade" onRequestClose={() => setFilterModalVisible(false)}>
-            <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setFilterModalVisible(false)}>
-              <TouchableOpacity activeOpacity={1}>
-                <View style={styles.filterModalBg}>
-                  <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
-                  <View style={styles.filterModalContent}>
-                    <View style={styles.modalHeader}>
-                      <Text style={styles.modalTitle}>筛选分类</Text>
-                      <TouchableOpacity onPress={() => setFilterModalVisible(false)}>
-                        <Ionicons name="close" size={24} color="rgba(255,255,255,0.5)" />
-                      </TouchableOpacity>
-                    </View>
-
-                    <TouchableOpacity style={[styles.filterOption, selectedCategoryFilter === 'all' && styles.filterOptionActive]} onPress={() => { setSelectedCategoryFilter('all'); setFilterModalVisible(false); }}>
-                      <Text style={styles.filterOptionText}>全部</Text>
-                      {selectedCategoryFilter === 'all' && <Ionicons name="checkmark" size={20} color="#6C63FF" />}
+                  <View style={styles.editHeader}>
+                    <Text style={styles.editTitle}>编辑记录</Text>
+                    <TouchableOpacity onPress={() => setEditModalVisible(false)} style={styles.editCloseBtn}>
+                      <Ionicons name="close" size={22} color="rgba(255,255,255,0.6)" />
                     </TouchableOpacity>
+                  </View>
 
-                    <Text style={styles.filterSectionTitle}>支出分类</Text>
-                    {categories.filter(c => c.type === 'expense').map((category) => (
-                      <TouchableOpacity key={category.id} style={[styles.filterOption, selectedCategoryFilter === category.id && styles.filterOptionActive]} onPress={() => { setSelectedCategoryFilter(category.id); setFilterModalVisible(false); }}>
-                        <View style={styles.filterOptionLeft}>
-                          <View style={[styles.filterDot, { backgroundColor: category.color }]} />
-                          <Ionicons name={category.icon as any} size={18} color={category.color} />
-                          <Text style={styles.filterOptionText}>{category.name}</Text>
-                        </View>
-                        {selectedCategoryFilter === category.id && <Ionicons name="checkmark" size={20} color="#6C63FF" />}
+                  <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={styles.editScroll}>
+                    {/* 类型切换 */}
+                    <View style={styles.typeToggle}>
+                      <TouchableOpacity
+                        style={[styles.typeBtn, editType === 'expense' && styles.typeBtnExpense]}
+                        onPress={() => setEditType('expense')}
+                      >
+                        <Text style={[styles.typeBtnText, editType === 'expense' && styles.typeBtnTextActive]}>支出</Text>
                       </TouchableOpacity>
-                    ))}
+                      <TouchableOpacity
+                        style={[styles.typeBtn, editType === 'income' && styles.typeBtnIncome]}
+                        onPress={() => setEditType('income')}
+                      >
+                        <Text style={[styles.typeBtnText, editType === 'income' && styles.typeBtnTextActive]}>收入</Text>
+                      </TouchableOpacity>
+                    </View>
 
-                    <Text style={styles.filterSectionTitle}>收入分类</Text>
-                    {categories.filter(c => c.type === 'income').map((category) => (
-                      <TouchableOpacity key={category.id} style={[styles.filterOption, selectedCategoryFilter === category.id && styles.filterOptionActive]} onPress={() => { setSelectedCategoryFilter(category.id); setFilterModalVisible(false); }}>
-                        <View style={styles.filterOptionLeft}>
-                          <View style={[styles.filterDot, { backgroundColor: category.color }]} />
-                          <Ionicons name={category.icon as any} size={18} color={category.color} />
-                          <Text style={styles.filterOptionText}>{category.name}</Text>
-                        </View>
-                        {selectedCategoryFilter === category.id && <Ionicons name="checkmark" size={20} color="#6C63FF" />}
-                      </TouchableOpacity>
-                    ))}
+                    {/* 金额 */}
+                    <Text style={styles.editLabel}>金额</Text>
+                    <View style={styles.editAmountRow}>
+                      <Text style={styles.editCurrency}>¥</Text>
+                      <TextInput
+                        style={[styles.editAmountInput, inputBaseStyle, { height: 52 }]}
+                        placeholder="0.00"
+                        placeholderTextColor="rgba(255,255,255,0.3)"
+                        keyboardType="decimal-pad"
+                        value={editAmount}
+                        onChangeText={handleAmountChange}
+                      />
+                    </View>
+
+                    {/* 分类选择 */}
+                    <Text style={styles.editLabel}>分类</Text>
+                    <View style={styles.editCategoriesWrap}>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.editCategoriesRow}>
+                        {categories.filter(c => editType === 'expense' ? c.type === 'expense' : c.type === 'income').map((category) => (
+                          <TouchableOpacity
+                            key={category.id}
+                            style={[
+                              styles.editCatItem,
+                              editCategory === category.id && { borderColor: category.color, backgroundColor: `${category.color}20` },
+                            ]}
+                            onPress={() => setEditCategory(category.id)}
+                          >
+                            <Ionicons
+                              name={category.icon as any}
+                              size={18}
+                              color={editCategory === category.id ? category.color : 'rgba(255,255,255,0.5)'}
+                            />
+                            <Text style={[styles.editCatText, editCategory === category.id && { color: category.color }]}>
+                              {category.name}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+
+                    {/* 备注 */}
+                    <Text style={styles.editLabel}>备注</Text>
+                    <TextInput
+                      style={[styles.editNoteInput, inputBaseStyle]}
+                      placeholder="输入备注"
+                      placeholderTextColor="rgba(255,255,255,0.3)"
+                      value={editNote}
+                      onChangeText={setEditNote}
+                    />
+                  </ScrollView>
+
+                  {/* 底部按钮 */}
+                  <View style={styles.editButtons}>
+                    <TouchableOpacity style={styles.deleteBtn} onPress={() => { if (editingRecord) handleDelete(editingRecord.id); }}>
+                      <Ionicons name="trash-outline" size={18} color="#FF6B6B" />
+                      <Text style={styles.deleteBtnText}>删除</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.saveBtn} onPress={handleSaveEdit}>
+                      <Text style={styles.saveBtnText}>保存</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
               </TouchableOpacity>
+            </KeyboardAvoidingView>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* 筛选弹窗 */}
+        <Modal visible={filterModalVisible} transparent animationType="fade" onRequestClose={() => setFilterModalVisible(false)}>
+          <TouchableOpacity style={styles.filterOverlay} activeOpacity={1} onPress={() => setFilterModalVisible(false)}>
+            <TouchableOpacity activeOpacity={1}>
+              <View style={styles.filterPanel}>
+                <View style={styles.editHeader}>
+                  <Text style={styles.editTitle}>筛选分类</Text>
+                  <TouchableOpacity onPress={() => setFilterModalVisible(false)}>
+                    <Ionicons name="close" size={22} color="rgba(255,255,255,0.6)" />
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.filterItem, selectedCategoryFilter === 'all' && styles.filterItemActive]}
+                  onPress={() => { setSelectedCategoryFilter('all'); setFilterModalVisible(false); }}
+                >
+                  <Text style={styles.filterItemText}>全部</Text>
+                  {selectedCategoryFilter === 'all' && <Ionicons name="checkmark" size={18} color="#6C63FF" />}
+                </TouchableOpacity>
+
+                <Text style={styles.filterSectionLabel}>支出分类</Text>
+                {categories.filter(c => c.type === 'expense').map((category) => (
+                  <TouchableOpacity
+                    key={category.id}
+                    style={[styles.filterItem, selectedCategoryFilter === category.id && styles.filterItemActive]}
+                    onPress={() => { setSelectedCategoryFilter(category.id); setFilterModalVisible(false); }}
+                  >
+                    <View style={styles.filterItemLeft}>
+                      <View style={[styles.filterDot, { backgroundColor: category.color }]} />
+                      <Text style={styles.filterItemText}>{category.name}</Text>
+                    </View>
+                    {selectedCategoryFilter === category.id && <Ionicons name="checkmark" size={18} color="#6C63FF" />}
+                  </TouchableOpacity>
+                ))}
+
+                <Text style={styles.filterSectionLabel}>收入分类</Text>
+                {categories.filter(c => c.type === 'income').map((category) => (
+                  <TouchableOpacity
+                    key={category.id}
+                    style={[styles.filterItem, selectedCategoryFilter === category.id && styles.filterItemActive]}
+                    onPress={() => { setSelectedCategoryFilter(category.id); setFilterModalVisible(false); }}
+                  >
+                    <View style={styles.filterItemLeft}>
+                      <View style={[styles.filterDot, { backgroundColor: category.color }]} />
+                      <Text style={styles.filterItemText}>{category.name}</Text>
+                    </View>
+                    {selectedCategoryFilter === category.id && <Ionicons name="checkmark" size={18} color="#6C63FF" />}
+                  </TouchableOpacity>
+                ))}
+              </View>
             </TouchableOpacity>
-          </Modal>
-        </View>
+          </TouchableOpacity>
+        </Modal>
       </KeyboardAvoidingView>
     </Screen>
   );
@@ -397,61 +422,123 @@ export default function RecordsPage() {
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20 },
   title: { fontSize: 32, fontWeight: '700', color: '#FFFFFF', marginTop: 20, marginBottom: 20, textAlign: 'center' },
-  glassCard: { borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  glassCardContent: { padding: 16 },
-  searchContainer: { flexDirection: 'row', gap: 12, marginBottom: 16 },
-  searchInputContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 12, paddingHorizontal: 12, height: 48, gap: 8 },
+
+  // 搜索栏
+  searchRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  searchBox: {
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 12,
+    paddingHorizontal: 12, height: 48, gap: 8,
+  },
   searchInput: { flex: 1, fontSize: 14, color: '#FFFFFF' },
-  filterButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 12, paddingHorizontal: 14, height: 48, gap: 6 },
-  filterButtonActive: { backgroundColor: '#6C63FF' },
-  filterButtonText: { fontSize: 14, color: 'rgba(255,255,255,0.5)' },
-  filterButtonTextActive: { color: '#FFFFFF' },
-  recordsContainer: { flex: 1 },
+  filterBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 12,
+    paddingHorizontal: 12, height: 48,
+  },
+  filterBtnActive: { backgroundColor: '#6C63FF' },
+  filterBtnText: { fontSize: 13, color: 'rgba(255,255,255,0.5)' },
+  filterBtnTextActive: { color: '#FFFFFF', fontWeight: '600' },
+
+  // 列表
   listContent: { paddingBottom: 100 },
-  recordCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, marginBottom: 10 },
-  recordLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 12 },
-  recordIcon: { width: 44, height: 44, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  recordInfo: { marginLeft: 12, flex: 1 },
-  recordCategory: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
-  recordNote: { fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2 },
-  recordDate: { fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 },
-  recordAmountWrap: { justifyContent: 'center', paddingLeft: 8 },
-  recordAmount: { fontSize: 16, fontWeight: '700' },
-  emptyCard: { alignItems: 'center', paddingVertical: 60 },
-  emptyText: { fontSize: 16, fontWeight: '600', color: 'rgba(255,255,255,0.5)', marginTop: 12 },
-  emptySubtext: { fontSize: 13, color: 'rgba(255,255,255,0.3)', marginTop: 6 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  editModalBg: { borderTopLeftRadius: 0, borderTopRightRadius: 0, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', borderBottomWidth: 0 },
-  editModalContent: { padding: 24, backgroundColor: 'rgba(15,12,41,0.94)', maxHeight: '80%' },
-  filterModalBg: { margin: 20, borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
-  filterModalContent: { padding: 24, backgroundColor: 'rgba(15,12,41,0.94)', maxHeight: '70%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle: { fontSize: 18, fontWeight: '600', color: '#FFFFFF' },
-  typeToggle: { flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12, padding: 4, marginBottom: 20 },
-  typeButton: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 10 },
-  typeButtonActive: { backgroundColor: '#FF6B9D' },
-  typeButtonActiveIncome: { backgroundColor: '#4ECDC4' },
-  typeButtonText: { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.5)' },
-  typeButtonTextActive: { color: '#FFFFFF' },
-  amountContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20, height: 56 },
-  currencySymbol: { fontSize: 28, fontWeight: '300', color: 'rgba(255,255,255,0.5)' },
-  amountInput: { fontSize: 36, fontWeight: '700', color: '#FFFFFF', minWidth: 120, textAlign: 'center' },
-  labelText: { fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 12 },
-  categoriesScroll: { height: 64 },
-  categoriesContainer: { flexDirection: 'row', gap: 10 },
-  categoryItem: { alignItems: 'center', justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)', minWidth: 60 },
-  categoryText: { fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 4 },
-  noteInput: { backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12, paddingHorizontal: 16, fontSize: 14, color: '#FFFFFF', marginTop: 16 },
-  modalButtons: { flexDirection: 'row', gap: 12, marginTop: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)' },
-  modalButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, gap: 8 },
-  deleteButton: { backgroundColor: 'rgba(255,107,107,0.2)', borderWidth: 1, borderColor: '#FF6B6B' },
-  deleteButtonText: { fontSize: 15, fontWeight: '600', color: '#FF6B6B' },
-  saveButton: { backgroundColor: '#6C63FF' },
-  saveButtonText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
-  filterOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, marginBottom: 4 },
-  filterOptionActive: { backgroundColor: 'rgba(108,99,255,0.15)' },
-  filterOptionLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  recordCard: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    paddingVertical: 14, paddingLeft: 4, paddingRight: 16,
+    marginBottom: 10, overflow: 'hidden',
+  },
+  recordColorBar: { width: 4, height: 36, borderRadius: 2, marginRight: 12 },
+  recordIconWrap: {
+    width: 40, height: 40, borderRadius: 12,
+    justifyContent: 'center', alignItems: 'center', marginRight: 12,
+  },
+  recordMiddle: { flex: 1, justifyContent: 'center' },
+  recordNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  recordCatName: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
+  recordTypeTag: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  recordTypeTagText: { fontSize: 10, fontWeight: '600' },
+  recordDateText: { fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 4 },
+  recordNoteText: { fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2 },
+  recordRight: { justifyContent: 'center', paddingLeft: 8 },
+  recordAmountText: { fontSize: 16, fontWeight: '700' },
+
+  // 空状态
+  emptyState: { alignItems: 'center', paddingTop: 80 },
+  emptyText: { fontSize: 16, color: 'rgba(255,255,255,0.4)', marginTop: 12 },
+  emptySubtext: { fontSize: 13, color: 'rgba(255,255,255,0.25)', marginTop: 6 },
+
+  // 编辑弹窗
+  editOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  editPanel: {
+    backgroundColor: '#1A1640',
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    maxHeight: '85%', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderBottomWidth: 0,
+  },
+  editHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)', alignSelf: 'center', marginTop: 12, marginBottom: 8 },
+  editHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 },
+  editTitle: { fontSize: 18, fontWeight: '600', color: '#FFFFFF' },
+  editCloseBtn: { padding: 4 },
+  editScroll: { paddingHorizontal: 20, paddingBottom: 10 },
+
+  typeToggle: { flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12, padding: 4, marginBottom: 16 },
+  typeBtn: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 10 },
+  typeBtnExpense: { backgroundColor: '#FF6B9D' },
+  typeBtnIncome: { backgroundColor: '#4ECDC4' },
+  typeBtnText: { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.5)' },
+  typeBtnTextActive: { color: '#FFFFFF' },
+
+  editLabel: { fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 8, marginTop: 8 },
+  editAmountRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12, paddingHorizontal: 16, height: 52 },
+  editCurrency: { fontSize: 24, fontWeight: '300', color: 'rgba(255,255,255,0.5)', marginRight: 8 },
+  editAmountInput: { flex: 1, fontSize: 28, fontWeight: '700', color: '#FFFFFF', textAlign: 'center' },
+  editCategoriesWrap: { height: 58 },
+  editCategoriesRow: { flexDirection: 'row', gap: 10 },
+  editCatItem: {
+    alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  editCatText: { fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 4 },
+  editNoteInput: {
+    backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12,
+    paddingHorizontal: 16, fontSize: 14, color: '#FFFFFF',
+    marginTop: 4,
+  },
+
+  editButtons: {
+    flexDirection: 'row', gap: 12,
+    paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24,
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)',
+  },
+  deleteBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 14, borderRadius: 12,
+    backgroundColor: 'rgba(255,107,107,0.15)', borderWidth: 1, borderColor: 'rgba(255,107,107,0.4)',
+  },
+  deleteBtnText: { fontSize: 15, fontWeight: '600', color: '#FF6B6B' },
+  saveBtn: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 14, borderRadius: 12, backgroundColor: '#6C63FF',
+  },
+  saveBtnText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
+
+  // 筛选弹窗
+  filterOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
+  filterPanel: {
+    width: width - 60, borderRadius: 24,
+    backgroundColor: '#1A1640', maxHeight: '70%',
+    padding: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+  },
+  filterItem: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, marginBottom: 4,
+  },
+  filterItemActive: { backgroundColor: 'rgba(108,99,255,0.15)' },
+  filterItemLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   filterDot: { width: 8, height: 8, borderRadius: 4 },
-  filterOptionText: { fontSize: 14, color: '#FFFFFF' },
-  filterSectionTitle: { fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 12, marginBottom: 8, paddingHorizontal: 12 },
+  filterItemText: { fontSize: 14, color: '#FFFFFF' },
+  filterSectionLabel: { fontSize: 12, color: 'rgba(255,255,255,0.35)', marginTop: 12, marginBottom: 6, paddingHorizontal: 12 },
 });
