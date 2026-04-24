@@ -263,89 +263,86 @@ export default function RecordsPage() {
 
         {/* 编辑弹窗 - 使用不透明背景，不用BlurView */}
         <Modal visible={editModalVisible} transparent animationType="slide" onRequestClose={() => setEditModalVisible(false)}>
-          <TouchableOpacity style={styles.editOverlay} activeOpacity={1} onPress={() => setEditModalVisible(false)}>
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ justifyContent: 'flex-end' }}>
-              <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
-                <View style={styles.editPanel}>
-                  {/* 顶部把手 */}
-                  <View style={styles.editHandle} />
+          <View style={styles.editOverlay}>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.editKAV}>
+              <View style={styles.editPanel}>
+                {/* 顶部把手 + 标题 - 固定在顶部 */}
+                <View style={styles.editHandle} />
+                <View style={styles.editHeader}>
+                  <Text style={styles.editTitle}>编辑记录</Text>
+                  <TouchableOpacity onPress={() => setEditModalVisible(false)} style={styles.editCloseBtn}>
+                    <Ionicons name="close" size={22} color="rgba(255,255,255,0.6)" />
+                  </TouchableOpacity>
+                </View>
 
-                  <View style={styles.editHeader}>
-                    <Text style={styles.editTitle}>编辑记录</Text>
-                    <TouchableOpacity onPress={() => setEditModalVisible(false)} style={styles.editCloseBtn}>
-                      <Ionicons name="close" size={22} color="rgba(255,255,255,0.6)" />
+                {/* 可滚动内容区域 */}
+                <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" style={styles.editScroll} contentContainerStyle={styles.editScrollContent}>
+                  {/* 类型切换 */}
+                  <View style={styles.typeToggle}>
+                    <TouchableOpacity
+                      style={[styles.typeBtn, editType === 'expense' && styles.typeBtnExpense]}
+                      onPress={() => setEditType('expense')}
+                    >
+                      <Text style={[styles.typeBtnText, editType === 'expense' && styles.typeBtnTextActive]}>支出</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.typeBtn, editType === 'income' && styles.typeBtnIncome]}
+                      onPress={() => setEditType('income')}
+                    >
+                      <Text style={[styles.typeBtnText, editType === 'income' && styles.typeBtnTextActive]}>收入</Text>
                     </TouchableOpacity>
                   </View>
 
-                  <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={styles.editScroll}>
-                    {/* 类型切换 */}
-                    <View style={styles.typeToggle}>
-                      <TouchableOpacity
-                        style={[styles.typeBtn, editType === 'expense' && styles.typeBtnExpense]}
-                        onPress={() => setEditType('expense')}
-                      >
-                        <Text style={[styles.typeBtnText, editType === 'expense' && styles.typeBtnTextActive]}>支出</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.typeBtn, editType === 'income' && styles.typeBtnIncome]}
-                        onPress={() => setEditType('income')}
-                      >
-                        <Text style={[styles.typeBtnText, editType === 'income' && styles.typeBtnTextActive]}>收入</Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* 金额 */}
-                    <Text style={styles.editLabel}>金额</Text>
-                    <View style={styles.editAmountRow}>
-                      <Text style={styles.editCurrency}>¥</Text>
-                      <TextInput
-                        style={[styles.editAmountInput, inputBaseStyle, { height: 52 }]}
-                        placeholder="0.00"
-                        placeholderTextColor="rgba(255,255,255,0.3)"
-                        keyboardType="decimal-pad"
-                        value={editAmount}
-                        onChangeText={handleAmountChange}
-                      />
-                    </View>
-
-                    {/* 分类选择 */}
-                    <Text style={styles.editLabel}>分类</Text>
-                    <View style={styles.editCategoriesWrap}>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.editCategoriesRow}>
-                        {categories.filter(c => editType === 'expense' ? c.type === 'expense' : c.type === 'income').map((category) => (
-                          <TouchableOpacity
-                            key={category.id}
-                            style={[
-                              styles.editCatItem,
-                              editCategory === category.id && { borderColor: category.color, backgroundColor: `${category.color}20` },
-                            ]}
-                            onPress={() => setEditCategory(category.id)}
-                          >
-                            <Ionicons
-                              name={category.icon as any}
-                              size={18}
-                              color={editCategory === category.id ? category.color : 'rgba(255,255,255,0.5)'}
-                            />
-                            <Text style={[styles.editCatText, editCategory === category.id && { color: category.color }]}>
-                              {category.name}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    </View>
-
-                    {/* 备注 */}
-                    <Text style={styles.editLabel}>备注</Text>
+                  {/* 金额 */}
+                  <Text style={styles.editLabel}>金额</Text>
+                  <View style={styles.editAmountRow}>
+                    <Text style={styles.editCurrency}>¥</Text>
                     <TextInput
-                      style={[styles.editNoteInput, inputBaseStyle]}
-                      placeholder="输入备注"
+                      style={[styles.editAmountInput, inputBaseStyle, { height: 56 }]}
+                      placeholder="0.00"
                       placeholderTextColor="rgba(255,255,255,0.3)"
-                      value={editNote}
-                      onChangeText={setEditNote}
+                      keyboardType="decimal-pad"
+                      value={editAmount}
+                      onChangeText={handleAmountChange}
                     />
-                  </ScrollView>
+                  </View>
 
-                  {/* 底部按钮 */}
+                  {/* 分类选择 - 使用flexWrap允许换行 */}
+                  <Text style={styles.editLabel}>分类</Text>
+                  <View style={styles.editCategoriesWrap}>
+                    {categories.filter(c => editType === 'expense' ? c.type === 'expense' : c.type === 'income').map((category) => (
+                      <TouchableOpacity
+                        key={category.id}
+                        style={[
+                          styles.editCatItem,
+                          editCategory === category.id && { borderColor: category.color, backgroundColor: `${category.color}20` },
+                        ]}
+                        onPress={() => setEditCategory(category.id)}
+                      >
+                        <Ionicons
+                          name={category.icon as any}
+                          size={20}
+                          color={editCategory === category.id ? category.color : 'rgba(255,255,255,0.5)'}
+                        />
+                        <Text style={[styles.editCatText, editCategory === category.id && { color: category.color }]}>
+                          {category.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* 备注 */}
+                  <Text style={styles.editLabel}>备注</Text>
+                  <TextInput
+                    style={[styles.editNoteInput, inputBaseStyle, { height: 52 }]}
+                    placeholder="输入备注"
+                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    value={editNote}
+                    onChangeText={setEditNote}
+                    multiline={false}
+                  />
+
+                  {/* 底部按钮 - 在滚动区域内 */}
                   <View style={styles.editButtons}>
                     <TouchableOpacity style={styles.deleteBtn} onPress={() => { if (editingRecord) handleDelete(editingRecord.id); }}>
                       <Ionicons name="trash-outline" size={18} color="#FF6B6B" />
@@ -355,10 +352,10 @@ export default function RecordsPage() {
                       <Text style={styles.saveBtnText}>保存</Text>
                     </TouchableOpacity>
                   </View>
-                </View>
-              </TouchableOpacity>
+                </ScrollView>
+              </View>
             </KeyboardAvoidingView>
-          </TouchableOpacity>
+          </View>
         </Modal>
 
         {/* 筛选弹窗 */}
@@ -471,59 +468,58 @@ const styles = StyleSheet.create({
 
   // 编辑弹窗
   editOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  editKAV: { flex: 1, justifyContent: 'flex-end' },
   editPanel: {
     backgroundColor: '#1A1640',
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    maxHeight: '85%', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderBottomWidth: 0,
+    height: '92%', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderBottomWidth: 0,
   },
-  editHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)', alignSelf: 'center', marginTop: 12, marginBottom: 8 },
-  editHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 },
+  editHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)', alignSelf: 'center', marginTop: 12, marginBottom: 4 },
+  editHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
   editTitle: { fontSize: 18, fontWeight: '600', color: '#FFFFFF' },
   editCloseBtn: { padding: 4 },
-  editScroll: { paddingHorizontal: 20, paddingBottom: 10 },
+  editScroll: { flex: 1 },
+  editScrollContent: { paddingHorizontal: 20, paddingBottom: 40 },
 
-  typeToggle: { flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12, padding: 4, marginBottom: 16 },
-  typeBtn: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 10 },
+  typeToggle: { flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12, padding: 4, marginBottom: 16, marginTop: 8 },
+  typeBtn: { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 10 },
   typeBtnExpense: { backgroundColor: '#FF6B9D' },
   typeBtnIncome: { backgroundColor: '#4ECDC4' },
   typeBtnText: { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.5)' },
   typeBtnTextActive: { color: '#FFFFFF' },
 
-  editLabel: { fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 8, marginTop: 8 },
-  editAmountRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12, paddingHorizontal: 16, height: 52 },
-  editCurrency: { fontSize: 24, fontWeight: '300', color: 'rgba(255,255,255,0.5)', marginRight: 8 },
-  editAmountInput: { flex: 1, fontSize: 28, fontWeight: '700', color: '#FFFFFF', textAlign: 'center' },
-  editCategoriesWrap: { height: 58 },
-  editCategoriesRow: { flexDirection: 'row', gap: 10 },
+  editLabel: { fontSize: 14, color: 'rgba(255,255,255,0.6)', marginBottom: 10, marginTop: 12 },
+  editAmountRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 14, paddingHorizontal: 16, height: 56 },
+  editCurrency: { fontSize: 26, fontWeight: '300', color: 'rgba(255,255,255,0.5)', marginRight: 8 },
+  editAmountInput: { flex: 1, fontSize: 30, fontWeight: '700', color: '#FFFFFF', textAlign: 'center' },
+  editCategoriesWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   editCatItem: {
     alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12,
+    paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: 'rgba(255,255,255,0.05)', minWidth: 60,
   },
-  editCatText: { fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 4 },
+  editCatText: { fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 4 },
   editNoteInput: {
-    backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12,
-    paddingHorizontal: 16, fontSize: 14, color: '#FFFFFF',
-    marginTop: 4,
+    backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 14,
+    paddingHorizontal: 16, fontSize: 15, color: '#FFFFFF',
   },
 
   editButtons: {
     flexDirection: 'row', gap: 12,
-    paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24,
-    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)',
+    paddingTop: 20, marginTop: 16,
   },
   deleteBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, paddingVertical: 14, borderRadius: 12,
+    gap: 6, paddingVertical: 16, borderRadius: 14,
     backgroundColor: 'rgba(255,107,107,0.15)', borderWidth: 1, borderColor: 'rgba(255,107,107,0.4)',
   },
-  deleteBtnText: { fontSize: 15, fontWeight: '600', color: '#FF6B6B' },
+  deleteBtnText: { fontSize: 16, fontWeight: '600', color: '#FF6B6B' },
   saveBtn: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 14, borderRadius: 12, backgroundColor: '#6C63FF',
+    paddingVertical: 16, borderRadius: 14, backgroundColor: '#6C63FF',
   },
-  saveBtnText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
+  saveBtnText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
 
   // 筛选弹窗
   filterOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },

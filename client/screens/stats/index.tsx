@@ -410,7 +410,7 @@ export default function StatsPage() {
                 data={lineChart.incomeData}
                 data2={lineChart.expenseData}
                 width={width - 80}
-                height={200}
+                height={220}
                 spacing={lineChart.incomeData.length > 0 ? Math.max(14, (width - 100) / (lineChart.incomeData.length + 1)) : 20}
                 color1="#4ECDC4"
                 color2="#FF6B9D"
@@ -427,20 +427,20 @@ export default function StatsPage() {
                 focusEnabled
                 showStripOnFocus
                 showTextOnFocus
-                stripColor="rgba(255,255,255,0.15)"
-                stripOpacity={0.5}
-                dataPointsColor1="#4ECDC4"
-                dataPointsColor2="#FF6B9D"
-                dataPointsRadius={4}
-                focusedDataPointRadius={6}
-                dataPointsWidth={0}
+                showDataPointOnFocus
+                stripColor="rgba(255,255,255,0.2)"
+                stripOpacity={0.6}
+                stripWidth={1}
+                dataPointsRadius={0}
+                focusedDataPointRadius={5}
+                focusedDataPointColor="#FFFFFF"
                 thickness={2}
                 startFillColor1="transparent"
                 endFillColor1="transparent"
                 startFillColor2="transparent"
                 endFillColor2="transparent"
                 adjustToWidth
-                textFontSize={12}
+                textFontSize={13}
                 textColor1="#4ECDC4"
                 textColor2="#FF6B9D"
               />
